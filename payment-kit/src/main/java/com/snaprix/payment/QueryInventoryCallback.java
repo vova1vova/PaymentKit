@@ -8,5 +8,5 @@ import org.onepf.oms.appstore.googleUtils.SkuDetails;
  */
 public interface QueryInventoryCallback {
     void onQueryFinished(SkuDetails sku, boolean isPurchased);
-    void onFailure(String sku);
+    void onFailure(String sku, Throwable e);
 }

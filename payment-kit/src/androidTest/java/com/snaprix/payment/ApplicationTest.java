@@ -1,4 +1,4 @@
-package com.snaprix.mylibrary;
+package com.snaprix.payment;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

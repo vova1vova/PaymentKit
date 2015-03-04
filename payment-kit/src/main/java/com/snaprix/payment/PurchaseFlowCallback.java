@@ -5,5 +5,5 @@ package com.snaprix.payment;
  */
 public interface PurchaseFlowCallback {
     void onPurchaseFinished(String sku);
-    void onFailure(String sku);
+    void onFailure(String sku, Throwable e);
 }

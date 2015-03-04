@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import org.jetbrains.annotations.Nullable;
 import org.onepf.oms.OpenIabHelper;
 import org.onepf.oms.appstore.googleUtils.IabHelper;
 import org.onepf.oms.appstore.googleUtils.IabResult;
@@ -29,8 +30,13 @@ public class OpenBilling {
 
     private static final int REQUEST_CODE_PURCHASE_FLOW = 100;
 
+    private boolean mIsSetupInProgress;
     private boolean mIsSetupDone;
-    private boolean mQueryInProgress;
+
+    @Nullable
+    private QueryInventoryData mQueryInventoryData;
+    @Nullable
+    private PurchaseData mPurchaseData;
 
     private Context mContext;
     private OpenIabHelper mHelper;
@@ -44,9 +50,6 @@ public class OpenBilling {
 
         // set up in-app billing
         // compute your public key and store it in base64EncodedPublicKey
-
-        mIsSetupDone = false;
-        mQueryInProgress = false;
 
         Logger.setLoggable(DEBUG);
 
@@ -62,7 +65,33 @@ public class OpenBilling {
 //            builder.addPreferredStoreName(OpenIabHelper.NAME_GOOGLE);
 //        }
 
+        mIsSetupInProgress = true;
+        mIsSetupDone = false;
+
         mHelper = new OpenIabHelper(mContext, builder.build());
+        mHelper.startSetup(new IabHelper.OnIabSetupFinishedListener(){
+            @Override
+            public void onIabSetupFinished(IabResult result) {
+                mIsSetupInProgress = false;
+                mIsSetupDone = result.isSuccess();
+
+                if (mQueryInventoryData != null) {
+                    if (mIsSetupDone){
+                        checkSKU(mQueryInventoryData.mSku, mQueryInventoryData.mCallback);
+                    } else {
+                        checkSkuFailedOnSetup(mQueryInventoryData.mSku, mQueryInventoryData.mCallback);
+                    }
+                }
+
+                if (mPurchaseData != null) {
+                    if (mIsSetupDone) {
+                        launchPurchaseFlow(mPurchaseData.mActivity, mPurchaseData.mSku, mPurchaseData.mCallback);
+                    } else {
+                        launchPurchaseFailedOnSetup(mPurchaseData.mSku, mPurchaseData.mCallback);
+                    }
+                }
+            }
+        });
     }
 
     public boolean handleActivityResult(int requestCode, int resultCode, Intent data){
@@ -75,6 +104,8 @@ public class OpenBilling {
         if (mHelper != null) mHelper.dispose();
         mHelper = null;
 
+        mQueryInventoryData = null;
+        mPurchaseData = null;
     }
 
     /**
@@ -82,107 +113,133 @@ public class OpenBilling {
      */
     public void checkSKU(String sku, QueryInventoryCallback callback) {
         if (mHelper == null) {
-            if (DEBUG) Log.w(TAG, "checkSKU mHelper == null");
+            callback.onFailure(sku, new BillingException("checkSKU mHelper == null"));
             return;
         }
 
-        if (DEBUG) Log.v(TAG, String.format("checkSKU sku=%s", sku));
+        if (mQueryInventoryData != null){
+            /**
+             * it's already in progress, wait for previous result,
+             * and do not call callback methods
+             */
+            return;
+        }
 
-        if (mIsSetupDone && !mQueryInProgress) {
-            mQueryInProgress = true;
+        mQueryInventoryData = new QueryInventoryData(sku, callback);
 
-            List<String> additionalSkuList = new ArrayList<String>();
+        if (mIsSetupDone) {
+            List<String> additionalSkuList = new ArrayList<>();
             additionalSkuList.add(sku);
-            mHelper.queryInventoryAsync(true, additionalSkuList, new QueryInventoryFinishedListener(sku, callback));
+            mHelper.queryInventoryAsync(true, additionalSkuList, new QueryInventoryFinishedListener());
         } else {
-            if (!mIsSetupDone) {
-                if (DEBUG) Log.d(TAG, "checkSKU " + "mHelper has not been setup");
-                mHelper.startSetup(new IabSetupFinishedListener(sku, callback));
-            }
-
-            if (mQueryInProgress) {
-                if (DEBUG) Log.w(TAG, "checkSKU " + "mHelper async in progress");
+            if (mIsSetupInProgress) {
+                // wait for setup and try from setup callback
+            } else {
+                checkSkuFailedOnSetup(sku, callback);
             }
         }
     }
 
     public void launchPurchaseFlow(Activity activity, String sku, PurchaseFlowCallback callback) {
-        mHelper.launchPurchaseFlow(activity, sku, REQUEST_CODE_PURCHASE_FLOW, new IabPurchaseFinishedListener(sku, callback), "extraData");
+        if (mHelper == null) {
+            callback.onFailure(sku, new BillingException("launchPurchaseFlow mHelper == null"));
+            return;
+        }
+
+        if (mPurchaseData != null){
+            /**
+             * it's already in progress, wait for previous result,
+             * and do not call callback methods
+             */
+            return;
+        }
+
+        mPurchaseData = new PurchaseData(activity, sku, callback);
+
+        if (mIsSetupDone) {
+            mHelper.launchPurchaseFlow(activity, sku, REQUEST_CODE_PURCHASE_FLOW, new IabPurchaseFinishedListener(), "extraData");
+        } else {
+            if (mIsSetupInProgress) {
+                // wait for setup and try from setup callback
+            } else {
+                launchPurchaseFailedOnSetup(sku, callback);
+            }
+        }
+    }
+
+    private void checkSkuFailedOnSetup(String sku, QueryInventoryCallback callback){
+        callback.onFailure(sku, new BillingException("failed to setup"));
+        mQueryInventoryData = null;
+    }
+
+    private void launchPurchaseFailedOnSetup(String sku, PurchaseFlowCallback callback){
+        callback.onFailure(sku, new BillingException("failed to setup"));
+        mPurchaseData = null;
     }
 
 
 
-
-    private class IabSetupFinishedListener implements IabHelper.OnIabSetupFinishedListener {
+    private static class QueryInventoryData{
         private final String mSku;
         private final QueryInventoryCallback mCallback;
 
-        private IabSetupFinishedListener(String sku, QueryInventoryCallback callback) {
+        private QueryInventoryData(String sku, QueryInventoryCallback callback) {
             mSku = sku;
             mCallback = callback;
         }
+    }
 
-        @Override
-        public void onIabSetupFinished(IabResult result) {
-            if (result.isSuccess()) {
-                mIsSetupDone = true;
-                // Hooray, IAB is fully set up! try to check SKUs again
-                checkSKU(mSku, mCallback);
-            } else {
-                // Oh noes, there was a problem.
-                Log.e(TAG, "onIabSetupFinished Problem setting up In-app Billing: " + result);
-                mCallback.onFailure(mSku);
-            }
+    private static class PurchaseData {
+        private final Activity mActivity;
+        private final String mSku;
+        private final PurchaseFlowCallback mCallback;
+
+        private PurchaseData(Activity activity, String sku, PurchaseFlowCallback callback) {
+            mActivity = activity;
+            mSku = sku;
+            mCallback = callback;
         }
     }
 
     private class QueryInventoryFinishedListener implements IabHelper.QueryInventoryFinishedListener {
-        private final String mSku;
-        private final QueryInventoryCallback mCallback;
-
-        private QueryInventoryFinishedListener(String sku, QueryInventoryCallback callback) {
-            mSku = sku;
-            mCallback = callback;
-        }
-
         @Override
         public void onQueryInventoryFinished(IabResult result, Inventory inv) {
-            mQueryInProgress = false;
+            final String sku = mQueryInventoryData.mSku;
+            final QueryInventoryCallback callback = mQueryInventoryData.mCallback;
+            mQueryInventoryData = null;
 
             if (result.isFailure()) {
-                mCallback.onFailure(mSku);
+                callback.onFailure(sku, new BillingException(String.format("onQueryInventoryFinished result=%s", result)));
                 return;
             }
 
-            boolean isPurchased = inv.hasPurchase(mSku);
+            boolean isPurchased = inv.hasPurchase(sku);
             if (DEBUG) Log.v(TAG, String.format("onQueryInventoryFinished isPurchased=%b", isPurchased));
 
-            mCallback.onQueryFinished(inv.getSkuDetails(mSku), isPurchased);
+            callback.onQueryFinished(inv.getSkuDetails(sku), isPurchased);
         }
     }
 
-    private static class IabPurchaseFinishedListener implements IabHelper.OnIabPurchaseFinishedListener {
-        private final String mSku;
-        private final PurchaseFlowCallback mCallback;
-
-        private IabPurchaseFinishedListener(String sku, PurchaseFlowCallback callback) {
-            mSku = sku;
-            mCallback = callback;
-        }
-
+    private class IabPurchaseFinishedListener implements IabHelper.OnIabPurchaseFinishedListener {
         @Override
         public void onIabPurchaseFinished(IabResult result, Purchase info) {
+            final String sku = mPurchaseData.mSku;
+            final PurchaseFlowCallback callback = mPurchaseData.mCallback;
+            mPurchaseData = null;
+
             if (result.isFailure()) {
-                mCallback.onFailure(mSku);
+                callback.onFailure(sku, new BillingException(String.format("onIabPurchaseFinished result=%s", result)));
                 return;
             }
 
             if (DEBUG) Log.d(TAG, "onIabPurchaseFinished " + "purchase " + info.toString());
-            if (info.getSku().equals(mSku)) {
+            if (info.getSku().equals(sku)) {
                 // give user access to premium content and update the UI
-                if (DEBUG) Log.d(TAG, "onIabPurchaseFinished " + mSku + " purchased!!!");
+                if (DEBUG) Log.d(TAG, "onIabPurchaseFinished " + sku + " purchased!!!");
 
-                mCallback.onPurchaseFinished(mSku);
+                callback.onPurchaseFinished(sku);
+            } else {
+                callback.onFailure(sku, new BillingException(String.format("onIabPurchaseFinished not purchased")));
             }
         }
     }
