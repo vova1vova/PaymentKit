@@ -1,0 +1,32 @@
+ext {
+    PUBLISH_GROUP_ID = 'com.snaprix'
+    PUBLISH_ARTIFACT_ID = 'payment-kit'
+    PUBLISH_VERSION = '1.0.2'
+    PUBLISH_REPOSITORY = rootProject.ext.localRepository
+}
+
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 21
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    defaultConfig {
+        minSdkVersion 10
+        targetSdkVersion 21
+        versionCode 3
+        versionName "2015.01.13"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    compile 'org.onepf:openiab:0.9.8.1'
+}
+
+apply from: '../android-release-aar.gradle'
