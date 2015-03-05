@@ -1,7 +1,7 @@
 ext {
     PUBLISH_GROUP_ID = 'com.snaprix'
     PUBLISH_ARTIFACT_ID = 'payment-kit'
-    PUBLISH_VERSION = '1.0.3'
+    PUBLISH_VERSION = '1.0.5'
     PUBLISH_REPOSITORY = rootProject.ext.localRepository
 }
 
@@ -14,8 +14,8 @@ android {
     defaultConfig {
         minSdkVersion 10
         targetSdkVersion 21
-        versionCode 4
-        versionName "2015.03.04"
+        versionCode 5
+        versionName "2015.03.05"
     }
     buildTypes {
         release {

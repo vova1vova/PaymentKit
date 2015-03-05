@@ -6,7 +6,7 @@ import org.onepf.oms.appstore.googleUtils.SkuDetails;
 /**
  * Created by vladimirryabchikov on 7/10/14.
  */
-public interface QueryInventoryCallback {
+public interface QueryInventoryCallback extends BillingCallback {
+    // onQueryFinished(sku :SkuDetails, isPurchased :boolean)
     void onQueryFinished(SkuDetails sku, boolean isPurchased);
-    void onFailure(String sku, Throwable e);
 }
