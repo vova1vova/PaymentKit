@@ -227,7 +227,7 @@ public class OpenBilling {
         }
 
         public void failed(Throwable e){
-            mCallback.onFailure(mSku, e);
+            mCallback.onFail(mSku, e);
             finished();
         }
 
@@ -265,7 +265,7 @@ public class OpenBilling {
                     boolean isPurchased = inv.hasPurchase(mSku);
                     if (SHOW_LOGS) Log.v(TAG, String.format("onQueryInventoryFinished isPurchased=%b", isPurchased));
 
-                    mCallback.onQueryFinished(inv.getSkuDetails(mSku), isPurchased);
+                    mCallback.onFinishQuery(inv.getSkuDetails(mSku), isPurchased);
                     finished();
                 }
             });
@@ -291,9 +291,11 @@ public class OpenBilling {
 
                 @Override
                 public void onIabPurchaseFinished(IabResult result, org.onepf.oms.appstore.googleUtils.Purchase info) {
+                    if (SHOW_LOGS) Log.v(TAG, String.format("onIabPurchaseFinished result=%s info=%s", result, info));
+
                     if (result.isFailure()) {
                         if (result.getResponse() == IabHelper.IABHELPER_USER_CANCELLED){
-                            // do not send any errors when user cancelled
+                            mCallback.onCancelByUser(mSku);
                             finished();
                         } else {
                             failed(new BillingException(String.format("onIabPurchaseFinished result=%s", result)));
@@ -302,12 +304,12 @@ public class OpenBilling {
                         return;
                     }
 
-                    if (SHOW_LOGS) Log.d(TAG, "onIabPurchaseFinished " + "purchase " + info.toString());
                     if (info.getSku().equals(mSku)) {
                         // give user access to premium content and update the UI
                         if (SHOW_LOGS) Log.d(TAG, "onIabPurchaseFinished " + mSku + " purchased!!!");
 
-                        mCallback.onPurchaseFinished(mSku);
+                        mCallback.onPurchaseSuccess(mSku);
+                        finished();
                     } else {
                         failed(new BillingException(String.format("onIabPurchaseFinished not purchased")));
                     }
