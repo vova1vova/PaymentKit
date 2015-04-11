@@ -1,27 +1,26 @@
 ext {
     PUBLISH_GROUP_ID = 'com.snaprix'
     PUBLISH_ARTIFACT_ID = 'payment-kit'
-    PUBLISH_VERSION = '1.0.6'
+    PUBLISH_VERSION = '2015.04.11'
     PUBLISH_REPOSITORY = rootProject.ext.localRepository
 }
 
 apply plugin: 'com.android.library'
 
 android {
-    compileSdkVersion 21
+    compileSdkVersion 22
     buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
         minSdkVersion 10
-        targetSdkVersion 21
-        versionCode 6
-        versionName "2015.03.05"
+        targetSdkVersion 22
+        versionCode 8
+        versionName "2015.04.11"
     }
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
     }
 }
 
